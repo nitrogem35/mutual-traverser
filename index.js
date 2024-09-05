@@ -2,6 +2,7 @@ require('dotenv').config();
 const { createInterface } = require('node:readline/promises');
 const fs = require('node:fs');
 const { Client } = require('discord.js-selfbot-v13');
+const { select } = require('@inquirer/prompts');
 const chalk = require('chalk');
 const Discord = require('./discord.js');
 const client = new Client({
@@ -26,40 +27,45 @@ const speeds = {
 };
 
 //Receive CLI input
-const input = createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
+async function getInput(prompt) {
+    let input = createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+    let response = await input.question(prompt);
+    input.close();
+    return response;
+}
 
 (async () => {
     while (true) {
-        let cmd = await input.question("> ");
+        let cmd = await getInput("> ");
         switch (cmd) {
             case "help": {
                 console.log(chalk.bold([
                     "exit - exit the program",
                     "help - show this list",
                     "scrape - extract member list for later analysis",
-                    "mutuals - find people who share a specific server in common using a 'scrape'-generated list",
+                    "mutuals - find people who share a specific server in common",
                     "",
                     "mutual-traverser v" + version
                 ].join("\n")));
                 break;
             }
             case "scrape": {
-                let serverToTraverse = await input.question(chalk.bold("Where are you searching for mutuals? (paste server ID):\n"));
+                let serverToTraverse = await getInput(chalk.bold("Where are you searching for mutuals? (paste server ID):\n"));
                 let guild;
                 try { 
                     guild = await client.guilds.fetch(serverToTraverse);
                 } catch (e) {}
                 while (!guild) {
-                    serverToTraverse = await input.question(chalk.yellow.bold("That server ID isn't in your server list. Try again:\n"));
+                    serverToTraverse = await getInput(chalk.yellow.bold("That server ID isn't in your server list. Try again:\n"));
                     guild = await client.guilds.fetch(serverToTraverse);
                 }
 
                 let depth;
                 while (isNaN(depth) || !(depth >= 1 && depth <= 4)) {
-                    depth = parseInt(await input.question(chalk.bold(`Enter a depth (1-4) for bruteforcing the member list (1 = ~${speeds[1]}s, 4 = ~${speeds[4]}s):\n`)));
+                    depth = parseInt(await getInput(chalk.bold(`Enter a depth (1-4) for bruteforcing the member list (1 = ~${speeds[1]}s, 4 = ~${speeds[4]}s):\n`)));
                 }
 
                 console.log(chalk.green.bold(("Bruteforcing member list...")));
@@ -93,6 +99,54 @@ const input = createInterface({
                 let filename = `scraped/${serverToTraverse}.json`;
                 fs.writeFileSync(filename, toStore);
                 console.log(chalk.green.bold("Saved run to " + filename));
+                break;
+            }
+            case "mutuals": {
+                let scraped = fs.readdirSync('scraped');
+                if (scraped.length == 0) {
+                    console.log(chalk.hex("#FFA500").bold("No scraped member lists found! Run 'scrape' first."));
+                    break;
+                }
+                let filename = await select({
+                    message: 'Choose a member list to find mutuals in',
+                    choices: scraped.map(fn => { return { name: fn, value: fn }; })
+                })
+                let loadedList = JSON.parse(fs.readFileSync('scraped/' + filename));
+                console.log(chalk.green.bold("Finished loading precompiled list, processing..."));
+                let mutualServers = {};
+                let ct = 0;
+                let failuresSuccessive = 0;
+                for (let [id, member] of loadedList) {
+                    try {
+                        let memberDetails = await Discord.userProfile(id);
+                        if (memberDetails.retry_after) {
+                            await sleep(memberDetails.retry_after + 100);
+                            memberDetails = await Discord.userProfile(id);
+                        }
+                        for (let guild of memberDetails.mutual_guilds) {
+                            if (guild.id != member.guildId) {
+                                let msg = `${memberDetails.user.username} shares ${guild.id} in common with you`;
+                                if (!mutualServers[guild.id]) {
+                                    mutualServers[guild.id] = [];
+                                    msg = chalk.blue.bold(msg + ' (new!)');
+                                }
+                                mutualServers[guild.id].push(memberDetails);
+                                console.log(msg);
+                                ct++;
+                            }
+                        }
+                        failuresSuccessive = 0;
+                    } catch (e) {
+                        console.log(chalk.red.bold("An error occured with processing a member, ratelimit?"));
+                        failuresSuccessive++;
+                        if (failuresSuccessive == 5) {
+                            console.log(chalk.red.bold("Terminating after 5 successive failures"));
+                            break;
+                        }
+                    }
+                    await sleep(2000);
+                }
+                console.log(chalk.green.bold(`Found ${Object.keys(mutualServers).length} mutual servers with ${ct} total occurrences`));
                 break;
             }
             case "exit": {
