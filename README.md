@@ -11,5 +11,5 @@ Then, use the `mutuals` command to select this JSON file and specify which mutua
 Planned features:
 - [x] Scrape most of the member list beyond just the online members
 - [x] Save scraped data in a convenient format for parsing by the program and external tools  
-- [ ] Read the scraped member list and look for mutual servers among the members
+- [x] Read the scraped member list and look for mutual servers among the members
 - [ ] Add another cmd to also check for mutual friends

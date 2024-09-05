@@ -10,7 +10,8 @@ const client = new Client({
         headers: { "x-super-properties": "eyJvcyI6Ik1hYyBPUyBYIiwiYnJvd3NlciI6IkNocm9tZSIsImRldmljZSI6IiIsInN5c3RlbV9sb2NhbGUiOiJlbi1VUyIsImJyb3dzZXJfdXNlcl9hZ2VudCI6Ik1vemlsbGEvNS4wIChNYWNpbnRvc2g7IEludGVsIE1hYyBPUyBYIDEwXzE1XzcpIEFwcGxlV2ViS2l0LzUzNy4zNiAoS0hUTUwsIGxpa2UgR2Vja28pIENocm9tZS8xMjguMC4wLjAgU2FmYXJpLzUzNy4zNiIsImJyb3dzZXJfdmVyc2lvbiI6IjEyOC4wLjAuMCIsIm9zX3ZlcnNpb24iOiIxMC4xNS43IiwicmVmZXJyZXIiOiIiLCJyZWZlcnJpbmdfZG9tYWluIjoiIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjMyMzUzOSwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbH0=" }
     }
 });
-const version = "2024.09.04";
+const version = "2024.09.05";
+let clientReady = false;
 
 const token = process.env.token;
 if (!token) {
@@ -37,8 +38,8 @@ async function getInput(prompt) {
     return response;
 }
 
-(async () => {
-    while (true) {
+async function appLoop() {
+    while (clientReady) {
         let cmd = await getInput("> ");
         switch (cmd) {
             case "help": {
@@ -102,7 +103,7 @@ async function getInput(prompt) {
                 break;
             }
             case "mutuals": {
-                let scraped = fs.readdirSync('scraped');
+                let scraped = fs.readdirSync('scraped').filter(fn => fn.endsWith(".json"));
                 if (scraped.length == 0) {
                     console.log(chalk.hex("#FFA500").bold("No scraped member lists found! Run 'scrape' first."));
                     break;
@@ -123,6 +124,7 @@ async function getInput(prompt) {
                             await sleep(memberDetails.retry_after + 100);
                             memberDetails = await Discord.userProfile(id);
                         }
+                        if (memberDetails.user.bot || memberDetails.user.id == client.user.id) continue;
                         for (let guild of memberDetails.mutual_guilds) {
                             if (guild.id != member.guildId) {
                                 let msg = `${memberDetails.user.username} shares ${guild.id} in common with you`;
@@ -147,6 +149,20 @@ async function getInput(prompt) {
                     await sleep(2000);
                 }
                 console.log(chalk.green.bold(`Found ${Object.keys(mutualServers).length} mutual servers with ${ct} total occurrences`));
+                let parsedMutualServers = "";
+                let myServers = client.guilds.cache;
+                for (let serverId of Object.keys(mutualServers)) {
+                    let serverName = myServers.has(serverId) ? myServers.get(serverId).name : "Unknown Server";
+                    parsedMutualServers += [
+                        `---${serverName} (${serverId})---`,
+                        ...mutualServers[serverId].map(memberDetails => `${memberDetails.user.username} (${memberDetails.user.id})`),
+                        "", ""
+                    ].join('\n');
+                }
+                if (!fs.existsSync('parsed')) fs.mkdirSync('parsed');
+                let parsedFileName = `parsed/${filename.split(".json")[0]}.txt`;
+                fs.writeFileSync(parsedFileName, parsedMutualServers);
+                console.log(chalk.green.bold("Saved mutual servers to " + parsedFileName));
                 break;
             }
             case "exit": {
@@ -159,10 +175,17 @@ async function getInput(prompt) {
             }
         }
     }
-})();
+};
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+client.on('ready', () => {
+    clientReady = true;
+    console.log(chalk.green.bold("Logged in as " + client.user.username));
+    appLoop();
+});
 
 //Initialize the selfbot to grab member info later
 Discord.login(token);
 client.login(token);
+console.log(chalk.yellow.bold("Logging in to Discord..."));
