@@ -84,7 +84,13 @@ async function appLoop() {
                             }
                         }
                         console.log(`Searching with query: "${query}" (${membersFound.size < 1000 ? membersFound.size : (membersFound.size / 1000).toFixed(1) + 'k'} found)`)
-                        let memberList = await guild.members.fetch({ query, limit: 100 });
+                        let memberList;
+                        try { 
+                            memberList = await guild.members.fetch({ query, limit: 100 });
+                        } catch (e) {
+                            console.log(chalk.red.bold("Search error, trying again..."));
+                            continue;
+                        }
                         for (let [id, memberObj] of memberList) {
                             if (!membersFound.has(id)) {
                                 membersFound.set(id, memberObj);
