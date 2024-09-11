@@ -10,7 +10,7 @@ const client = new Client({
         headers: { "x-super-properties": "eyJvcyI6Ik1hYyBPUyBYIiwiYnJvd3NlciI6IkNocm9tZSIsImRldmljZSI6IiIsInN5c3RlbV9sb2NhbGUiOiJlbi1VUyIsImJyb3dzZXJfdXNlcl9hZ2VudCI6Ik1vemlsbGEvNS4wIChNYWNpbnRvc2g7IEludGVsIE1hYyBPUyBYIDEwXzE1XzcpIEFwcGxlV2ViS2l0LzUzNy4zNiAoS0hUTUwsIGxpa2UgR2Vja28pIENocm9tZS8xMjguMC4wLjAgU2FmYXJpLzUzNy4zNiIsImJyb3dzZXJfdmVyc2lvbiI6IjEyOC4wLjAuMCIsIm9zX3ZlcnNpb24iOiIxMC4xNS43IiwicmVmZXJyZXIiOiIiLCJyZWZlcnJpbmdfZG9tYWluIjoiIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjMyMzUzOSwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbH0=" }
     }
 });
-const version = "2024.09.05";
+const version = "2024.09.10";
 let clientReady = false;
 
 const token = process.env.token;
@@ -121,6 +121,7 @@ async function appLoop() {
                 let loadedList = JSON.parse(fs.readFileSync('scraped/' + filename));
                 console.log(chalk.green.bold("Finished loading precompiled list, processing..."));
                 let mutualServers = {};
+                let myServers = client.guilds.cache;
                 let ct = 0;
                 let failuresSuccessive = 0;
                 for (let [id, member] of loadedList) {
@@ -133,7 +134,7 @@ async function appLoop() {
                         if (memberDetails.user.bot || memberDetails.user.id == client.user.id) continue;
                         for (let guild of memberDetails.mutual_guilds) {
                             if (guild.id != member.guildId) {
-                                let msg = `${memberDetails.user.username} shares ${guild.id} in common with you`;
+                                let msg = `${memberDetails.user.username} shares ${myServers.get(guild.id)?.name} (${guild.id}) in common with you`;
                                 if (!mutualServers[guild.id]) {
                                     mutualServers[guild.id] = [];
                                     msg = chalk.blue.bold(msg + ' (new!)');
@@ -156,7 +157,6 @@ async function appLoop() {
                 }
                 console.log(chalk.green.bold(`Found ${Object.keys(mutualServers).length} mutual servers with ${ct} total occurrences`));
                 let parsedMutualServers = "";
-                let myServers = client.guilds.cache;
                 for (let serverId of Object.keys(mutualServers)) {
                     let serverName = myServers.has(serverId) ? myServers.get(serverId).name : "Unknown Server";
                     parsedMutualServers += [
