@@ -1,6 +1,6 @@
 # mutual-traverser
 CLI-based script to check a given discord server for mutual servers  
-[demo pic](/demo.jpg)
+![demo pic](/demo.jpg)
 
 Run `node index.js` to get started.
 
