@@ -2,3 +2,4 @@
 node_modules/*
 scraped/*
 parsed/*
+username_dumps/*
