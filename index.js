@@ -48,6 +48,7 @@ async function appLoop() {
                     "help - show this list",
                     "scrape - extract member list for later analysis",
                     "mutuals - find people who share a specific server in common",
+                    "usernames - dump usernames list from a server",
                     "",
                     "mutual-traverser v" + version
                 ].join("\n")));
@@ -168,6 +169,25 @@ async function appLoop() {
                 if (!fs.existsSync('parsed')) fs.mkdirSync('parsed');
                 let parsedFileName = `parsed/${filename.split(".json")[0]}.txt`;
                 fs.writeFileSync(parsedFileName, parsedMutualServers);
+                console.log(chalk.green.bold("Saved mutual servers to " + parsedFileName));
+                break;
+            }
+            case "usernames": {
+                let scraped = fs.readdirSync('scraped').filter(fn => fn.endsWith(".json"));
+                if (scraped.length == 0) {
+                    console.log(chalk.hex("#FFA500").bold("No scraped member lists found! Run 'scrape' first."));
+                    break;
+                }
+                let filename = await select({
+                    message: 'Choose a member list to dump usernames from',
+                    choices: scraped.map(fn => { return { name: fn, value: fn }; })
+                })
+                let loadedList = JSON.parse(fs.readFileSync('scraped/' + filename));
+                console.log(chalk.green.bold("Finished loading precompiled list, processing..."));
+                let parsedUsernames = loadedList.map(v => `${v[0]} - ${v[1].displayName}`).join("\n");
+                if (!fs.existsSync('username_dumps')) fs.mkdirSync('username_dumps');
+                let parsedFileName = `username_dumps/${filename.split(".json")[0]}.txt`;
+                fs.writeFileSync(parsedFileName, parsedUsernames);
                 console.log(chalk.green.bold("Saved mutual servers to " + parsedFileName));
                 break;
             }
